@@ -193,9 +193,10 @@ Classpath 规则：
   1. 通过VSCode Marketplace安装 
   2. 本地源码构建
 - 尽可能保持简单，不要写技术和实现细节，主要突出功能和使用
-- 使用说明需要用到img目录下的JarEditor_main.png和JarEditor_add_delete.png，使用img标签
- - JarEditor_main.png的width为800,height根据图片大小等比例调整
- - JarEditor_add_delete.png的width为500，height根据图片大小等比例调整
+- 使用说明需要用到img目录下的JarEditor_demo.gif,JarEditor_main.png和JarEditor_add_delete.png
+  - JarEditor_demo.gif原图，是一个修改jar的演示例子
+  - JarEditor_main.png原图
+  - JarEditor_add_delete.png的width为500，height根据图片大小等比例调整
 
 ## 常用命令
 
