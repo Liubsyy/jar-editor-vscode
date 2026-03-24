@@ -1,41 +1,40 @@
-# JAR Editor
+# JarEditor
 
 [English](./README.md) | [中文](./README_zh.md)
 
-JAR Editor is a VS Code extension for browsing and editing JAR contents directly from the Explorer sidebar.
+JarEditor is a VS Code extension for browsing and editing JAR files directly from the Explorer sidebar.
 
-It lets you inspect entries inside workspace JAR files, open regular files for editing, view `.class` files as decompiled Java source, and build your changes back into the original archive.
+It lets you inspect archive contents, open regular entries as text, view `.class` files as decompiled Java source, add or delete entries, and build your changes back into the original JAR.
 
 ## Features
 
-- Automatically discover `*.jar` files in the current workspace
-- Browse JAR contents in the `JAR Editor` view
-- Open and edit regular entries directly in VS Code
-- Open `.class` entries as decompiled Java source
-- Recompile modified `.class` files on save
-- Create files, classes, and directories from the Explorer context menu
-- Delete files or directories inside a JAR
+- Browse workspace JAR files in the `JarEditor` view
+- Open and edit regular files inside a JAR
+- Open `.class` files as decompiled Java source
+- Recompile edited `.class` files on save
+- Create files, classes, and directories inside a JAR
+- Delete files or directories from a JAR
 - Build edited output back into the original JAR
 
 ## Usage
 
-Open a workspace that contains one or more JAR files, then use the `JAR Editor` view in the Explorer sidebar to browse and edit entries.
+Open a workspace that contains JAR files, then use the `JarEditor` view in Explorer to browse the archive structure.
 
-For `.class` files, the extension opens decompiled Java source. After editing and saving, the source is recompiled and prepared for JAR rebuild. When you are ready, use `Build Jar` to write the edited result back to the original archive.
+Regular entries can be edited directly in VS Code. `.class` entries open as decompiled Java source in the custom editor. After saving, JarEditor recompiles the source and keeps the output ready for `Build Jar`.
 
-If you want to edit `.class` files, make sure a local JDK is available.
+If you edit `.class` files, make sure a JDK is available. You can set `jarEditor.javaHome` or choose a JDK from the editor toolbar.
 
-![Main View](./img/JarEditor_main.png)
+<img src="./img/JarEditor_main.png" width="800" height="472" alt="JarEditor main view" />
 
-Use the Explorer context menu to create new entries or remove existing ones inside the JAR.
+Use the Explorer context menu to create new files, classes, or directories, and to delete existing entries from the JAR.
 
-![Add And Delete](./img/JarEditor_add_delete.png)
+<img src="./img/JarEditor_add_delete.png" width="600" height="517" alt="JarEditor add and delete actions" />
 
 ## Installation and Running
 
 ### Install from VS Code Marketplace
 
-Open the Extensions view in VS Code, search for `JAR Editor`, and install it from the Marketplace.
+Open the Extensions view in VS Code, search for `JarEditor`, and install it from the Marketplace.
 
 ### Build from Source
 
@@ -44,8 +43,8 @@ npm install
 npm run compile
 ```
 
-Open this project in VS Code, then press `F5` to launch an Extension Development Host.
+Open this project in VS Code and press `F5` to start an Extension Development Host.
 
-## License
+## Licence
 
-Licensed under the [Apache License 2.0](./LICENSE).
+Released under the [Apache License 2.0](./LICENSE).
