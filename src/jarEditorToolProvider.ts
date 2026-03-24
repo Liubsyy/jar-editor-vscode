@@ -92,7 +92,10 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
     try {
       const result = await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Window, title: `Saving ${entryPath}...` },
-        () => this.jarEditService.saveEntry(jarPath, entryPath, currentText, target),
+        () => {
+          const extraJars = this.jarModel.getAllArchives().map((a) => a.jarPath);
+          return this.jarEditService.saveEntry(jarPath, entryPath, currentText, target, extraJars);
+        },
       );
       await this.persistDocumentState(document, currentText);
       vscode.window.showInformationMessage(`Save successfully,out=${result.outputPath}`);

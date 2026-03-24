@@ -273,8 +273,30 @@ async function getDecompiledClassContent(
     return undefined;
   }
 
+  if (classBytes.length === 0) {
+    return generateClassTemplate(entryPath);
+  }
+
   const className = entryPath.split('/').pop()!;
   const innerClasses = archive.getInnerClassEntries(entryPath);
   const cacheKey = `${jarPath}!/${entryPath}`;
   return decompiler.decompile(classBytes, cacheKey, className, innerClasses);
+}
+
+function generateClassTemplate(entryPath: string): string {
+  const classPath = entryPath.startsWith('BOOT-INF/classes/')
+    ? entryPath.slice('BOOT-INF/classes/'.length)
+    : entryPath;
+  const parts = classPath.replace(/\.class$/, '').split('/');
+  const className = parts.pop()!;
+  const lines: string[] = [];
+  if (parts.length > 0) {
+    lines.push(`package ${parts.join('.')};`);
+    lines.push('');
+  }
+  lines.push(`public class ${className} {`);
+  lines.push('');
+  lines.push('}');
+  lines.push('');
+  return lines.join('\n');
 }

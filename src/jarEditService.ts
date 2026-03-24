@@ -35,9 +35,9 @@ const SPRING_BOOT_LIB_PREFIX = 'BOOT-INF/lib/';
 export class JarEditService {
   private javaTargetOptions?: JavaTargetOption[];
 
-  async saveEntry(jarPath: string, entryPath: string, text: string, target?: string): Promise<SaveEntryResult> {
+  async saveEntry(jarPath: string, entryPath: string, text: string, target?: string, extraClasspathJars?: string[]): Promise<SaveEntryResult> {
     if (entryPath.endsWith('.class')) {
-      return this.saveClassEntry(jarPath, entryPath, text, target ?? this.getDefaultJavaTarget());
+      return this.saveClassEntry(jarPath, entryPath, text, target ?? this.getDefaultJavaTarget(), extraClasspathJars ?? []);
     }
     return this.saveTextEntry(jarPath, entryPath, text);
   }
@@ -166,7 +166,7 @@ export class JarEditService {
     };
   }
 
-  private async saveClassEntry(jarPath: string, entryPath: string, text: string, target: string): Promise<SaveEntryResult> {
+  private async saveClassEntry(jarPath: string, entryPath: string, text: string, target: string, extraClasspathJars: string[]): Promise<SaveEntryResult> {
     const outputRoot = getJarEditOutputRoot(jarPath);
     const compileRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'jar-editor-compile-'));
     const sourceRoot = path.join(compileRoot, 'src');
@@ -175,7 +175,7 @@ export class JarEditService {
     const sourcePath = path.join(sourceRoot, ...sourceRelativePath.split('/'));
 
     try {
-      const compileContext = await this.createCompileContext(jarPath, entryPath, outputRoot);
+      const compileContext = await this.createCompileContext(jarPath, entryPath, outputRoot, extraClasspathJars);
       await fs.promises.mkdir(path.dirname(sourcePath), { recursive: true });
       await fs.promises.mkdir(classesRoot, { recursive: true });
       await fs.promises.writeFile(sourcePath, text, 'utf8');
@@ -209,9 +209,16 @@ export class JarEditService {
     }
   }
 
-  private async createCompileContext(jarPath: string, entryPath: string, outputRoot: string): Promise<CompileContext> {
+  private async createCompileContext(jarPath: string, entryPath: string, outputRoot: string, extraClasspathJars: string[]): Promise<CompileContext> {
+    // Filter out the current JAR from extra classpath to avoid duplicates
+    const extraJars = extraClasspathJars.filter((p) => p !== jarPath);
+
     if (!this.isSpringBootClassesEntry(entryPath)) {
-      const classpathEntries = fs.existsSync(outputRoot) ? [outputRoot, jarPath] : [jarPath];
+      const classpathEntries = [
+        ...(fs.existsSync(outputRoot) ? [outputRoot] : []),
+        jarPath,
+        ...extraJars,
+      ];
       return {
         classpathEntries,
         generatedEntriesRoot: '',
@@ -234,6 +241,7 @@ export class JarEditService {
       dependencyClassesRoot,
       ...await this.getSortedDependencyJarPaths(dependencyLibRoot),
       jarPath,
+      ...extraJars,
     ];
 
     return {
@@ -279,7 +287,7 @@ export class JarEditService {
       '-encoding', 'UTF-8',
       '-Xlint:none',
       '-g',
-      '-source', target,
+      '-source', target === '1.1' ? '1.2' : target,
       '-target', target,
       '-cp', classpath,
       '-d', classesRoot,
