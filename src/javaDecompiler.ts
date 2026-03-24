@@ -89,7 +89,7 @@ export class JavaDecompiler {
       execFile(
         javaPath,
         ['-jar', this.cfrPath, tmpFile],
-        { timeout: 35000 },
+        { timeout: 10000 },
         (error, stdout, stderr) => {
           try {
             fs.rmSync(tmpDir, { recursive: true });

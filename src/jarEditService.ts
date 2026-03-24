@@ -31,6 +31,8 @@ interface CompileContext {
 
 const SPRING_BOOT_CLASSES_PREFIX = 'BOOT-INF/classes/';
 const SPRING_BOOT_LIB_PREFIX = 'BOOT-INF/lib/';
+const JAVAC_TOOL_OPTIONS = '-Dfile.encoding=UTF-8 -Duser.language=en';
+const PICKED_UP_JAVA_TOOL_OPTIONS_LINE = `Picked up JAVA_TOOL_OPTIONS: ${JAVAC_TOOL_OPTIONS}`;
 
 export class JarEditService {
   private targetOptionsCache = new Map<string, JavaTargetOption[]>();
@@ -286,11 +288,8 @@ export class JarEditService {
         javacPath,
         compileArgs,
         {
-          timeout: 35000,
-          env: {
-            ...process.env,
-            CLASSPATH: classpath,
-          },
+          timeout: 10000,
+          env: this.getJavacEnvironment(classpath),
         },
         (error, stdout, stderr) => {
           if (error) {
@@ -298,7 +297,11 @@ export class JarEditService {
               reject(new Error('Java compiler not found. Install a JDK and ensure "javac" is on your PATH, or set "jarEditor.javaHome".'));
               return;
             }
-            const details = [stderr.trim(), stdout.trim()].filter(Boolean).join('\n');
+            const details = [stderr, stdout]
+              .map((output) => this.stripPickedUpJavaToolOptions(output))
+              .map((output) => output.trim())
+              .filter(Boolean)
+              .join('\n');
             reject(new Error(details || error.message));
             return;
           }
@@ -509,6 +512,26 @@ export class JarEditService {
     return entryPath.endsWith('/') ? entryPath : `${entryPath}/`;
   }
 
+  private getJavacEnvironment(classpath?: string): NodeJS.ProcessEnv {
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      JAVA_TOOL_OPTIONS: JAVAC_TOOL_OPTIONS,
+    };
+
+    if (classpath) {
+      env.CLASSPATH = classpath;
+    }
+
+    return env;
+  }
+
+  private stripPickedUpJavaToolOptions(output: string): string {
+    return output
+      .split(/\r?\n/)
+      .filter((line) => line.trim() !== PICKED_UP_JAVA_TOOL_OPTIONS_LINE)
+      .join('\n');
+  }
+
   private detectJavacFeatureVersion(jdkHome?: string): number | undefined {
     const javacPath = jdkHome
       ? path.join(jdkHome, 'bin', process.platform === 'win32' ? 'javac.exe' : 'javac')
@@ -516,6 +539,7 @@ export class JarEditService {
     const result = spawnSync(javacPath, ['-version'], {
       encoding: 'utf8',
       timeout: 5000,
+      env: this.getJavacEnvironment(),
     });
 
     if (result.error || result.status !== 0) {

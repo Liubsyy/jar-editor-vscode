@@ -74,7 +74,7 @@ JDK 列表存储在 `context.globalState`，key 为 `jarEditor.jdkList`：
 ```
 JDK 下拉框 change
 → webview 发送 jdkChanged + homePath
-→ extension 用该 JDK 的 javac 检测版本
+→ extension 用该 JDK 的 javac 检测版本（带 `JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Duser.language=en`）
 → 生成新 Target 列表
 → 发送 updateTargetOptions 到 webview
 → webview 更新 Target 下拉框
@@ -88,6 +88,7 @@ JDK 下拉框 change
 → handleSave(currentText, currentTarget, currentJdkHome)
 → jarEditService.saveEntry(..., jdkHome)
 → compileJavaSource 使用 jdkHome/bin/javac（若为空则走 findJavaToolExecutable 默认逻辑）
+→ 编译进程带 `JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Duser.language=en`
 ```
 
 ### 选择 JDK Home 目录

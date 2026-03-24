@@ -70,6 +70,12 @@ classpath 规则：
 - 如果 `jar_edit_out` 已存在，则 classpath 为 `<jar_edit_out>:<jarPath>`
 - 否则 classpath 为 `<jarPath>`
 
+当前 `javac` 进程环境还会额外注入：
+
+```bash
+JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Duser.language=en
+```
+
 ## Build Jar 流程
 
 点击 `Build Jar` 时：

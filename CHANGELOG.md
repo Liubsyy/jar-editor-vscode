@@ -2,6 +2,13 @@
 
 All notable changes to JarEditor will be documented in this file.
 
+
+## 1.0.2
+
+- Set `JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Duser.language=en` for spawned `javac` processes, including compile and version detection.
+- Reduced both `javac` compile timeout and CFR decompile timeout from 35 seconds to 10 seconds.
+
+
 ## 1.0.1
 
 - Fixed Windows URI handling for JAR entries so files inside JARs can be opened correctly.
