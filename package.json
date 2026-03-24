@@ -2,7 +2,7 @@
   "name": "jar-editor",
   "displayName": "JAR Editor",
   "description": "Browse and view contents of JAR files in the Explorer sidebar",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "publisher": "liubs",
   "engines": {
     "vscode": "^1.85.0"
