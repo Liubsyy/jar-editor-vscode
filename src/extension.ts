@@ -8,6 +8,7 @@ import { JavaDecompiler } from './javaDecompiler';
 import { DecompiledContentProvider } from './decompileContentProvider';
 import { JarEditorToolProvider } from './jarEditorToolProvider';
 import { JarEditService } from './jarEditService';
+import { JavaCompletionService } from './javaCompletionService';
 import { getJarScheme, DECOMPILED_SCHEME, createJarContentUri, parseJarContentUri } from './utils';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -20,16 +21,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   const decompiledProvider = new DecompiledContentProvider(jarModel, decompiler);
   const jarEditService = new JarEditService();
+  const completionService = new JavaCompletionService();
   const scanner = new JarScanner(jarModel, () => {
     explorerProvider.refresh();
     decompiler.clearCache();
+    completionService.invalidateCache();
   });
 
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider(getJarScheme(), fileSystemProvider),
   );
 
-  const toolProvider = new JarEditorToolProvider(jarEditService);
+  const toolProvider = new JarEditorToolProvider(jarEditService, jarModel, completionService);
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(JarEditorToolProvider.viewType, toolProvider),
   );

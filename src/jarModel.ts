@@ -54,6 +54,24 @@ export class JarArchive {
   }
 
   /**
+   * Collect all top-level .class entry paths (excluding inner classes containing '$').
+   */
+  getAllClassEntryPaths(): string[] {
+    const results: string[] = [];
+    this.collectClassPaths(this.tree, results);
+    return results;
+  }
+
+  private collectClassPaths(node: JarTreeNode, results: string[]): void {
+    if (!node.isDirectory && node.name.endsWith('.class') && !node.name.includes('$')) {
+      results.push(node.fullPath);
+    }
+    for (const child of node.children.values()) {
+      this.collectClassPaths(child, results);
+    }
+  }
+
+  /**
    * Find all inner class entries for a given class file.
    * e.g. for "com/example/Foo.class", returns entries matching "com/example/Foo$*.class"
    */
