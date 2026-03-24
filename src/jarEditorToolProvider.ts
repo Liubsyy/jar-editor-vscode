@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { JarEditService, JavaTargetOption } from './jarEditService';
 import { JavaCompletionService } from './javaCompletionService';
+import { JdkManager } from './jdkManager';
 import { JarModel } from './jarModel';
 import { parseJarContentUri } from './utils';
 
@@ -11,6 +12,7 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
     private readonly jarEditService: JarEditService,
     private readonly jarModel: JarModel,
     private readonly completionService: JavaCompletionService,
+    private readonly jdkManager: JdkManager,
   ) {}
 
   async resolveCustomTextEditor(
@@ -27,6 +29,7 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
       : this.jarEditService.getDefaultJavaTarget();
     let currentText = document.getText();
     let currentTarget = defaultJavaTarget;
+    let currentJdkHome = '';
 
     const updateWebview = () => {
       webviewPanel.webview.postMessage({
@@ -42,8 +45,16 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
       }
     });
 
+    const jdkChangeSubscription = this.jdkManager.onDidChange(() => {
+      void webviewPanel.webview.postMessage({
+        command: 'updateJdkList',
+        items: this.jdkManager.getDropdownItems(),
+      });
+    });
+
     webviewPanel.onDidDispose(() => {
       changeDocumentSubscription.dispose();
+      jdkChangeSubscription.dispose();
     });
 
     webviewPanel.onDidChangeViewState(() => {
@@ -55,7 +66,7 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
     webviewPanel.webview.onDidReceiveMessage(async (message) => {
       switch (message.command) {
         case 'save':
-          await this.handleSave(document, currentText, currentTarget);
+          await this.handleSave(document, currentText, currentTarget, currentJdkHome);
           break;
         case 'buildJar':
           await this.handleBuildJar(document, currentText);
@@ -66,13 +77,53 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
         case 'targetChanged':
           currentTarget = message.target;
           break;
+        case 'jdkChanged': {
+          currentJdkHome = message.homePath;
+          const newTargetOptions = this.jarEditService.getJavaTargetOptions(currentJdkHome || undefined);
+          const newDefault = isJava
+            ? this.jarEditService.getDefaultJavaTargetForClassEntry(jarPath, entryPath, currentJdkHome || undefined)
+            : this.jarEditService.getDefaultJavaTarget(currentJdkHome || undefined);
+          currentTarget = newDefault;
+          void webviewPanel.webview.postMessage({
+            command: 'updateTargetOptions',
+            options: newTargetOptions,
+            defaultValue: newDefault,
+          });
+          break;
+        }
         case 'requestCompletion':
           this.handleCompletionRequest(webviewPanel, jarPath, message.requestId);
           break;
+        case 'openJdkManager':
+          void webviewPanel.webview.postMessage({
+            command: 'showJdkDialog',
+            list: this.jdkManager.getJdkListForDialog(),
+          });
+          break;
+        case 'saveJdkList':
+          await this.jdkManager.saveJdkList(message.list);
+          break;
+        case 'browseJdkFolder': {
+          const folders = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Select JDK Home',
+          });
+          if (folders && folders.length > 0) {
+            void webviewPanel.webview.postMessage({
+              command: 'jdkFolderSelected',
+              path: folders[0].fsPath,
+              index: message.index,
+            });
+          }
+          break;
+        }
       }
     });
 
-    webviewPanel.webview.html = this.getHtml(document.getText(), isJava, javaTargetOptions, defaultJavaTarget);
+    const jdkDropdownItems = this.jdkManager.getDropdownItems();
+    webviewPanel.webview.html = this.getHtml(document.getText(), isJava, javaTargetOptions, defaultJavaTarget, jdkDropdownItems);
 
     if (isJava) {
       const classNames = this.completionService.getClassNamesForJar(jarPath, this.jarModel);
@@ -85,7 +136,7 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
     void webviewPanel.webview.postMessage({ command: 'completionResult', requestId, classNames });
   }
 
-  private async handleSave(document: vscode.TextDocument, currentText: string, target: string): Promise<void> {
+  private async handleSave(document: vscode.TextDocument, currentText: string, target: string, jdkHome: string): Promise<void> {
     const { jarPath, entryPath } = parseJarContentUri(document.uri);
 
     try {
@@ -93,7 +144,7 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
         { location: vscode.ProgressLocation.Window, title: `Saving ${entryPath}...` },
         () => {
           const extraJars = this.jarModel.getAllArchives().map((a) => a.jarPath);
-          return this.jarEditService.saveEntry(jarPath, entryPath, currentText, target, extraJars);
+          return this.jarEditService.saveEntry(jarPath, entryPath, currentText, target, extraJars, jdkHome || undefined);
         },
       );
       await this.persistDocumentState(document, currentText);
@@ -149,6 +200,7 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
     isJava: boolean,
     javaTargetOptions: JavaTargetOption[],
     defaultJavaTarget: string,
+    jdkDropdownItems: import('./jdkManager').JdkDropdownItem[],
   ): string {
     const escaped = content
       .replace(/&/g, '&amp;')
@@ -159,6 +211,13 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
       .map((option) => {
         const selected = option.value === defaultJavaTarget ? ' selected' : '';
         return `<option value="${option.value}"${selected}>${option.label}</option>`;
+      })
+      .join('');
+    const jdkOptionsHtml = jdkDropdownItems
+      .map((item) => {
+        const escapedPath = item.homePath.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+        const escapedLabel = item.label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<option value="${escapedPath}">${escapedLabel}</option>`;
       })
       .join('');
 
@@ -283,6 +342,169 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
       justify-content: flex-end;
       gap: 10px;
     }
+    .jdk-link {
+      font-size: 12px;
+      color: var(--vscode-textLink-foreground, #3794ff);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .jdk-link:hover {
+      text-decoration: underline;
+      color: var(--vscode-textLink-activeForeground, #3794ff);
+    }
+
+    /* JDK modal dialog */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.4);
+      z-index: 100;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-dialog {
+      width: 560px;
+      max-width: 90vw;
+      border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.35));
+      border-radius: 6px;
+      background: var(--vscode-editor-background);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+    .modal-title {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 10px 14px 0 14px;
+      color: var(--vscode-descriptionForeground);
+    }
+    .modal-body {
+      display: flex;
+      padding: 8px 14px;
+      gap: 14px;
+      min-height: 240px;
+    }
+    .jdk-list-panel {
+      display: flex;
+      flex-direction: column;
+      width: 170px;
+      flex-shrink: 0;
+    }
+    .jdk-list-actions {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .jdk-list-actions button {
+      width: 28px; height: 24px;
+      font-size: 16px; line-height: 1;
+      border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.35));
+      border-radius: 3px;
+      background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.15));
+      color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+      cursor: pointer; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .jdk-list-actions button:hover {
+      background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.25));
+    }
+    .jdk-list-box {
+      flex: 1;
+      border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.35));
+      border-radius: 3px;
+      overflow-y: auto;
+      background: var(--vscode-input-background, rgba(0,0,0,0.1));
+    }
+    .jdk-item {
+      padding: 4px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 12px;
+    }
+    .jdk-item.selected {
+      background: var(--vscode-list-activeSelectionBackground, #094771);
+      color: var(--vscode-list-activeSelectionForeground, #fff);
+    }
+    .jdk-item:hover:not(.selected) {
+      background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.15));
+    }
+    .jdk-detail-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-top: 28px;
+    }
+    .jdk-detail-panel.hidden { visibility: hidden; }
+    .jdk-field-label {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 3px;
+    }
+    .jdk-field-input {
+      width: 100%;
+      padding: 3px 8px;
+      border-radius: 3px;
+      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, rgba(128,128,128,0.35)));
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground, var(--vscode-editor-foreground));
+      font-size: 12px;
+      font-family: inherit;
+      box-sizing: border-box;
+      outline: none;
+    }
+    .jdk-field-input:focus {
+      border-color: var(--vscode-focusBorder, #007fd4);
+    }
+    .jdk-path-row {
+      display: flex; gap: 4px; align-items: center;
+    }
+    .jdk-path-row .jdk-field-input { flex: 1; }
+    .jdk-browse-btn {
+      width: 28px; height: 24px;
+      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, rgba(128,128,128,0.35)));
+      border-radius: 3px;
+      background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.15));
+      color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+      cursor: pointer; font-size: 13px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .jdk-browse-btn:hover {
+      background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.25));
+    }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 8px 14px 12px 14px;
+    }
+    .modal-footer button {
+      padding: 4px 18px;
+      border-radius: 3px;
+      font-size: 12px;
+      cursor: pointer;
+      border: none;
+    }
+    .modal-btn-cancel {
+      background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.2));
+      color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+    }
+    .modal-btn-cancel:hover {
+      background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.3));
+    }
+    .modal-btn-ok {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+    }
+    .modal-btn-ok:hover {
+      background: var(--vscode-button-hoverBackground);
+    }
+
     .toolbar-label {
       font-size: 12px;
       color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
@@ -296,6 +518,12 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
       color: var(--vscode-dropdown-foreground, var(--vscode-editor-foreground));
       background: var(--vscode-dropdown-background, var(--vscode-editor-background));
       font-size: 12px;
+    }
+    #jdkSelect {
+      min-width: 80px;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     button {
       padding: 5px 16px;
@@ -383,10 +611,43 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
     <div class="toolbar-title">JarEditor Tools</div>
     <div class="toolbar-box">
       <div class="toolbar-right">
+        <a class="jdk-link" onclick="send('openJdkManager')" style="display: ${isJava ? 'inline' : 'none'};">JDK</a>
+        <select id="jdkSelect" style="display: ${isJava ? 'inline-block' : 'none'};">${jdkOptionsHtml}</select>
         <label class="toolbar-label" for="targetSelect" style="display: ${isJava ? 'inline' : 'none'};">Target</label>
         <select id="targetSelect" style="display: ${isJava ? 'inline-block' : 'none'};">${targetOptionsHtml}</select>
         <button onclick="send('save')">Save</button>
         <button onclick="send('buildJar')">Build Jar</button>
+      </div>
+    </div>
+  </div>
+  <div id="jdkModal" class="modal-backdrop" style="display:none;">
+    <div class="modal-dialog">
+      <div class="modal-title">JDK List</div>
+      <div class="modal-body">
+        <div class="jdk-list-panel">
+          <div class="jdk-list-actions">
+            <button id="jdkBtnAdd" title="Add">+</button>
+            <button id="jdkBtnRemove" title="Remove">\u2212</button>
+          </div>
+          <div class="jdk-list-box" id="jdkListBox"></div>
+        </div>
+        <div class="jdk-detail-panel hidden" id="jdkDetailPanel">
+          <div>
+            <div class="jdk-field-label">Name</div>
+            <input class="jdk-field-input" id="jdkNameInput" type="text" />
+          </div>
+          <div>
+            <div class="jdk-field-label">JDK Home</div>
+            <div class="jdk-path-row">
+              <input class="jdk-field-input" id="jdkPathInput" type="text" />
+              <button class="jdk-browse-btn" id="jdkBtnBrowse" title="Browse">\ud83d\udcc2</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn-cancel" id="jdkBtnCancel">Cancel</button>
+        <button class="modal-btn-ok" id="jdkBtnOk">OK</button>
       </div>
     </div>
   </div>
@@ -400,6 +661,7 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
 
     const editor = document.getElementById('editor');
     const hl = document.getElementById('highlighting');
+    const jdkSelect = document.getElementById('jdkSelect');
     const targetSelect = document.getElementById('targetSelect');
     const completionPopup = document.getElementById('completionPopup');
 
@@ -759,6 +1021,12 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
       }
     }
 
+    if (jdkSelect) {
+      jdkSelect.addEventListener('change', function() {
+        vscode.postMessage({ command: 'jdkChanged', homePath: jdkSelect.value });
+      });
+    }
+
     if (targetSelect) {
       targetSelect.addEventListener('change', function() {
         vscode.postMessage({ command: 'targetChanged', target: targetSelect.value });
@@ -785,6 +1053,46 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
         hl.scrollTop = scrollTop;
         hl.scrollLeft = scrollLeft;
         fileSymbols = extractSymbols(editor.value);
+      } else if (message.command === 'updateTargetOptions' && Array.isArray(message.options)) {
+        if (targetSelect) {
+          targetSelect.innerHTML = '';
+          for (var ti = 0; ti < message.options.length; ti++) {
+            var topt = document.createElement('option');
+            topt.value = message.options[ti].value;
+            topt.textContent = message.options[ti].label;
+            if (message.options[ti].value === message.defaultValue) topt.selected = true;
+            targetSelect.appendChild(topt);
+          }
+          vscode.postMessage({ command: 'targetChanged', target: targetSelect.value });
+        }
+      } else if (message.command === 'showJdkDialog' && Array.isArray(message.list)) {
+        jdkShowModal(message.list);
+      } else if (message.command === 'jdkFolderSelected') {
+        var fi = message.index;
+        if (fi >= 0 && fi < jdkList.length) {
+          jdkList[fi].path = message.path;
+          if (!jdkList[fi].name) {
+            var parts = message.path.replace(/\\\\/g, '/').split('/');
+            jdkList[fi].name = parts[parts.length - 1] || message.path;
+          }
+          if (fi === jdkSelectedIdx) jdkRender();
+        }
+      } else if (message.command === 'updateJdkList' && Array.isArray(message.items)) {
+        if (jdkSelect) {
+          var prevValue = jdkSelect.value;
+          jdkSelect.innerHTML = '';
+          for (var j = 0; j < message.items.length; j++) {
+            var opt = document.createElement('option');
+            opt.value = message.items[j].homePath;
+            opt.textContent = message.items[j].label;
+            jdkSelect.appendChild(opt);
+          }
+          jdkSelect.value = prevValue;
+          if (jdkSelect.selectedIndex < 0 && jdkSelect.options.length > 0) {
+            jdkSelect.selectedIndex = 0;
+          }
+          vscode.postMessage({ command: 'jdkChanged', homePath: jdkSelect.value });
+        }
       } else if (message.command === 'setJarClassNames' && Array.isArray(message.classNames)) {
         jarClassNames = message.classNames;
       } else if (message.command === 'completionResult' && Array.isArray(message.classNames)) {
@@ -848,6 +1156,107 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
 
     editor.addEventListener('blur', function() {
       setTimeout(function() { hideCompletion(); }, 150);
+    });
+
+    /* ── JDK modal dialog ── */
+    var jdkModal = document.getElementById('jdkModal');
+    var jdkListBox = document.getElementById('jdkListBox');
+    var jdkDetailPanel = document.getElementById('jdkDetailPanel');
+    var jdkNameInput = document.getElementById('jdkNameInput');
+    var jdkPathInput = document.getElementById('jdkPathInput');
+    var jdkList = [];
+    var jdkSelectedIdx = -1;
+
+    function jdkRender() {
+      jdkListBox.innerHTML = '';
+      for (var i = 0; i < jdkList.length; i++) {
+        var div = document.createElement('div');
+        div.className = 'jdk-item' + (i === jdkSelectedIdx ? ' selected' : '');
+        div.textContent = jdkList[i].name || '(unnamed)';
+        div.setAttribute('data-index', i);
+        div.addEventListener('click', function() {
+          jdkSelectItem(parseInt(this.getAttribute('data-index')));
+        });
+        jdkListBox.appendChild(div);
+      }
+      if (jdkSelectedIdx >= 0 && jdkSelectedIdx < jdkList.length) {
+        jdkDetailPanel.classList.remove('hidden');
+        jdkNameInput.value = jdkList[jdkSelectedIdx].name;
+        jdkPathInput.value = jdkList[jdkSelectedIdx].path;
+      } else {
+        jdkDetailPanel.classList.add('hidden');
+      }
+    }
+
+    function jdkSelectItem(idx) {
+      jdkCommitCurrent();
+      jdkSelectedIdx = idx;
+      jdkRender();
+    }
+
+    function jdkCommitCurrent() {
+      if (jdkSelectedIdx >= 0 && jdkSelectedIdx < jdkList.length) {
+        jdkList[jdkSelectedIdx].name = jdkNameInput.value;
+        jdkList[jdkSelectedIdx].path = jdkPathInput.value;
+      }
+    }
+
+    function jdkShowModal(list) {
+      jdkList = list.map(function(e) { return { name: e.name, path: e.path }; });
+      jdkSelectedIdx = jdkList.length > 0 ? 0 : -1;
+      jdkRender();
+      jdkModal.style.display = 'flex';
+    }
+
+    function jdkHideModal() {
+      jdkModal.style.display = 'none';
+    }
+
+    document.getElementById('jdkBtnAdd').addEventListener('click', function() {
+      jdkCommitCurrent();
+      jdkList.push({ name: '', path: '' });
+      jdkSelectedIdx = jdkList.length - 1;
+      jdkRender();
+      jdkNameInput.focus();
+    });
+
+    document.getElementById('jdkBtnRemove').addEventListener('click', function() {
+      if (jdkSelectedIdx < 0 || jdkSelectedIdx >= jdkList.length) return;
+      jdkList.splice(jdkSelectedIdx, 1);
+      if (jdkSelectedIdx >= jdkList.length) jdkSelectedIdx = jdkList.length - 1;
+      jdkRender();
+    });
+
+    jdkNameInput.addEventListener('input', function() {
+      if (jdkSelectedIdx >= 0 && jdkSelectedIdx < jdkList.length) {
+        jdkList[jdkSelectedIdx].name = jdkNameInput.value;
+        var items = jdkListBox.querySelectorAll('.jdk-item');
+        if (items[jdkSelectedIdx]) items[jdkSelectedIdx].textContent = jdkNameInput.value || '(unnamed)';
+      }
+    });
+
+    jdkPathInput.addEventListener('input', function() {
+      if (jdkSelectedIdx >= 0 && jdkSelectedIdx < jdkList.length) {
+        jdkList[jdkSelectedIdx].path = jdkPathInput.value;
+      }
+    });
+
+    document.getElementById('jdkBtnBrowse').addEventListener('click', function() {
+      vscode.postMessage({ command: 'browseJdkFolder', index: jdkSelectedIdx });
+    });
+
+    document.getElementById('jdkBtnCancel').addEventListener('click', function() {
+      jdkHideModal();
+    });
+
+    document.getElementById('jdkBtnOk').addEventListener('click', function() {
+      jdkCommitCurrent();
+      vscode.postMessage({ command: 'saveJdkList', list: jdkList });
+      jdkHideModal();
+    });
+
+    jdkModal.addEventListener('click', function(e) {
+      if (e.target === jdkModal) jdkHideModal();
     });
 
     // Initial setup

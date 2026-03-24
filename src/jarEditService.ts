@@ -33,21 +33,23 @@ const SPRING_BOOT_CLASSES_PREFIX = 'BOOT-INF/classes/';
 const SPRING_BOOT_LIB_PREFIX = 'BOOT-INF/lib/';
 
 export class JarEditService {
-  private javaTargetOptions?: JavaTargetOption[];
+  private targetOptionsCache = new Map<string, JavaTargetOption[]>();
 
-  async saveEntry(jarPath: string, entryPath: string, text: string, target?: string, extraClasspathJars?: string[]): Promise<SaveEntryResult> {
+  async saveEntry(jarPath: string, entryPath: string, text: string, target?: string, extraClasspathJars?: string[], jdkHome?: string): Promise<SaveEntryResult> {
     if (entryPath.endsWith('.class')) {
-      return this.saveClassEntry(jarPath, entryPath, text, target ?? this.getDefaultJavaTarget(), extraClasspathJars ?? []);
+      return this.saveClassEntry(jarPath, entryPath, text, target ?? this.getDefaultJavaTarget(), extraClasspathJars ?? [], jdkHome);
     }
     return this.saveTextEntry(jarPath, entryPath, text);
   }
 
-  getJavaTargetOptions(): JavaTargetOption[] {
-    if (this.javaTargetOptions) {
-      return this.javaTargetOptions;
+  getJavaTargetOptions(jdkHome?: string): JavaTargetOption[] {
+    const cacheKey = jdkHome || '';
+    const cached = this.targetOptionsCache.get(cacheKey);
+    if (cached) {
+      return cached;
     }
 
-    const maxFeatureVersion = this.detectJavacFeatureVersion();
+    const maxFeatureVersion = this.detectJavacFeatureVersion(jdkHome);
     const effectiveMax = maxFeatureVersion && maxFeatureVersion >= 8 ? maxFeatureVersion : 8;
     const options: JavaTargetOption[] = [];
 
@@ -65,25 +67,25 @@ export class JarEditService {
       });
     }
 
-    this.javaTargetOptions = options;
+    this.targetOptionsCache.set(cacheKey, options);
     return options;
   }
 
-  getDefaultJavaTarget(): string {
-    const options = this.getJavaTargetOptions();
+  getDefaultJavaTarget(jdkHome?: string): string {
+    const options = this.getJavaTargetOptions(jdkHome);
     return options[options.length - 1].value;
   }
 
-  getDefaultJavaTargetForClassEntry(jarPath: string, entryPath: string): string {
+  getDefaultJavaTargetForClassEntry(jarPath: string, entryPath: string, jdkHome?: string): string {
     const classFeatureVersion = this.getClassFeatureVersion(jarPath, entryPath);
     if (!classFeatureVersion) {
-      return this.getDefaultJavaTarget();
+      return this.getDefaultJavaTarget(jdkHome);
     }
 
     const target = this.mapFeatureVersionToJavaTarget(classFeatureVersion);
-    const options = this.getJavaTargetOptions();
+    const options = this.getJavaTargetOptions(jdkHome);
     const matchingOption = options.find((option) => option.value === target);
-    return matchingOption ? matchingOption.value : this.getDefaultJavaTarget();
+    return matchingOption ? matchingOption.value : this.getDefaultJavaTarget(jdkHome);
   }
 
   async buildJar(jarPath: string): Promise<string> {
@@ -180,7 +182,7 @@ export class JarEditService {
     };
   }
 
-  private async saveClassEntry(jarPath: string, entryPath: string, text: string, target: string, extraClasspathJars: string[]): Promise<SaveEntryResult> {
+  private async saveClassEntry(jarPath: string, entryPath: string, text: string, target: string, extraClasspathJars: string[], jdkHome?: string): Promise<SaveEntryResult> {
     const outputRoot = getJarEditOutputRoot(jarPath);
     const compileRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'jar-editor-compile-'));
     const sourceRoot = path.join(compileRoot, 'src');
@@ -194,7 +196,7 @@ export class JarEditService {
       await fs.promises.mkdir(classesRoot, { recursive: true });
       await fs.promises.writeFile(sourcePath, text, 'utf8');
 
-      await this.compileJavaSource(compileContext.classpathEntries, classesRoot, sourcePath, target);
+      await this.compileJavaSource(compileContext.classpathEntries, classesRoot, sourcePath, target, jdkHome);
 
       const compiledFiles = await this.collectFiles(classesRoot);
       if (compiledFiles.length === 0) {
@@ -270,8 +272,11 @@ export class JarEditService {
     classesRoot: string,
     sourcePath: string,
     target: string,
+    jdkHome?: string,
   ): Promise<void> {
-    const javacPath = findJavaToolExecutable('javac');
+    const javacPath = jdkHome
+      ? path.join(jdkHome, 'bin', process.platform === 'win32' ? 'javac.exe' : 'javac')
+      : findJavaToolExecutable('javac');
     const compileArgs = this.getCompileArgs(classpathEntries.join(path.delimiter), classesRoot, sourcePath, target);
 
     await new Promise<void>((resolve, reject) => {
@@ -465,8 +470,10 @@ export class JarEditService {
     return entryPath.endsWith('/') ? entryPath : `${entryPath}/`;
   }
 
-  private detectJavacFeatureVersion(): number | undefined {
-    const javacPath = findJavaToolExecutable('javac');
+  private detectJavacFeatureVersion(jdkHome?: string): number | undefined {
+    const javacPath = jdkHome
+      ? path.join(jdkHome, 'bin', process.platform === 'win32' ? 'javac.exe' : 'javac')
+      : findJavaToolExecutable('javac');
     const result = spawnSync(javacPath, ['-version'], {
       encoding: 'utf8',
       timeout: 5000,

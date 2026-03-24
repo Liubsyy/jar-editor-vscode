@@ -8,6 +8,7 @@ import { JavaDecompiler } from './javaDecompiler';
 import { DecompiledContentProvider } from './decompileContentProvider';
 import { JarEditorToolProvider } from './jarEditorToolProvider';
 import { JarEditService } from './jarEditService';
+import { JdkManager } from './jdkManager';
 import { JavaCompletionService } from './javaCompletionService';
 import { getJarScheme, DECOMPILED_SCHEME, createJarContentUri, parseJarContentUri } from './utils';
 
@@ -32,7 +33,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.workspace.registerFileSystemProvider(getJarScheme(), fileSystemProvider),
   );
 
-  const toolProvider = new JarEditorToolProvider(jarEditService, jarModel, completionService);
+  const jdkManager = new JdkManager(context.globalState);
+  const toolProvider = new JarEditorToolProvider(jarEditService, jarModel, completionService, jdkManager);
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(JarEditorToolProvider.viewType, toolProvider),
   );
