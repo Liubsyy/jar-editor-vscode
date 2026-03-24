@@ -198,6 +198,10 @@ Classpath 规则：
   - JarEditor_main.png原图
   - JarEditor_add_delete.png的width为500，height根据图片大小等比例调整
 
+## 修改版本约定
+- 每次在原来的版本上+1
+- 修改版本后需要修改CHANGELOG.md
+
 ## 常用命令
 
 ```bash
