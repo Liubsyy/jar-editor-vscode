@@ -25,12 +25,10 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
     const defaultJavaTarget = isJava
       ? this.jarEditService.getDefaultJavaTargetForClassEntry(jarPath, entryPath)
       : this.jarEditService.getDefaultJavaTarget();
-    let isUpdatingFromWebview = false;
     let currentText = document.getText();
     let currentTarget = defaultJavaTarget;
 
     const updateWebview = () => {
-      currentText = document.getText();
       webviewPanel.webview.postMessage({
         command: 'setContent',
         text: currentText,
@@ -39,16 +37,19 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
 
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() === document.uri.toString()) {
-        if (isUpdatingFromWebview) {
-          isUpdatingFromWebview = false;
-          return;
-        }
+        currentText = document.getText();
         updateWebview();
       }
     });
 
     webviewPanel.onDidDispose(() => {
       changeDocumentSubscription.dispose();
+    });
+
+    webviewPanel.onDidChangeViewState(() => {
+      if (webviewPanel.visible) {
+        updateWebview();
+      }
     });
 
     webviewPanel.webview.onDidReceiveMessage(async (message) => {
@@ -60,9 +61,7 @@ export class JarEditorToolProvider implements vscode.CustomTextEditorProvider {
           await this.handleBuildJar(document, currentText);
           break;
         case 'contentChanged':
-          isUpdatingFromWebview = true;
           currentText = message.text;
-          void this.updateDocument(document, message.text);
           break;
         case 'targetChanged':
           currentTarget = message.target;
