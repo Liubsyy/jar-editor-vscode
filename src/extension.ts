@@ -50,7 +50,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('jarEditor.addEntry', async (target?: JarRootItem | JarEntryItem) => {
+    vscode.commands.registerCommand('jarEditor.newFile', async (target?: JarRootItem | JarEntryItem) => {
       if (!target || !target.isDirectory) {
         return;
       }
@@ -70,10 +70,69 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       try {
         await jarEditService.addEmptyEntry(target.jarPath, targetEntryPath);
         await refreshJarState(target.jarPath, '', false);
-        vscode.window.showInformationMessage(`Added empty file: ${targetEntryPath}`);
+        vscode.window.showInformationMessage(`Added file: ${targetEntryPath}`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        vscode.window.showErrorMessage(`Add entry failed: ${message}`);
+        vscode.window.showErrorMessage(`New file failed: ${message}`);
+      }
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('jarEditor.newClass', async (target?: JarRootItem | JarEntryItem) => {
+      if (!target || !target.isDirectory) {
+        return;
+      }
+
+      const input = await vscode.window.showInputBox({
+        prompt: 'Enter the class name (e.g. MyClass or com/example/MyClass)',
+        placeHolder: 'MyClass',
+        ignoreFocusOut: true,
+      });
+
+      if (input === undefined) {
+        return;
+      }
+
+      const classPath = input.endsWith('.class') ? input : `${input}.class`;
+      const targetEntryPath = joinJarEntryPath(target.entryPath, classPath);
+
+      try {
+        await jarEditService.addEmptyEntry(target.jarPath, targetEntryPath);
+        await refreshJarState(target.jarPath, '', false);
+        await vscode.commands.executeCommand('jarEditor.openClass', target.jarPath, targetEntryPath);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(`New class failed: ${message}`);
+      }
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('jarEditor.newDirectory', async (target?: JarRootItem | JarEntryItem) => {
+      if (!target || !target.isDirectory) {
+        return;
+      }
+
+      const relativePath = await vscode.window.showInputBox({
+        prompt: 'Enter a directory path to add to the JAR',
+        placeHolder: 'com/example',
+        ignoreFocusOut: true,
+      });
+
+      if (relativePath === undefined) {
+        return;
+      }
+
+      const targetEntryPath = joinJarEntryPath(target.entryPath, relativePath);
+
+      try {
+        await jarEditService.addEmptyDirectory(target.jarPath, targetEntryPath);
+        await refreshJarState(target.jarPath, '', false);
+        vscode.window.showInformationMessage(`Added directory: ${targetEntryPath}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(`New directory failed: ${message}`);
       }
     }),
   );

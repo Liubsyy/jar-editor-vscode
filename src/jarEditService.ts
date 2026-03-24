@@ -133,6 +133,20 @@ export class JarEditService {
     return normalizedEntryPath;
   }
 
+  async addEmptyDirectory(jarPath: string, targetEntryPath: string): Promise<string> {
+    const normalizedEntryPath = this.ensureDirectoryEntryPath(this.normalizeJarEntryPath(targetEntryPath));
+    const outputJarPath = getEditedJarOutputPath(jarPath);
+    const zip = new AdmZip(jarPath);
+
+    if (zip.getEntry(normalizedEntryPath)) {
+      throw new Error(`Entry already exists: ${normalizedEntryPath}`);
+    }
+
+    zip.addFile(normalizedEntryPath, Buffer.alloc(0));
+    await this.commitZipUpdate(zip, jarPath, outputJarPath);
+    return normalizedEntryPath;
+  }
+
   async deleteEntry(jarPath: string, targetEntryPath: string, isDirectory: boolean): Promise<void> {
     const normalizedEntryPath = this.normalizeJarEntryPath(targetEntryPath);
     const deletePrefix = isDirectory ? this.ensureDirectoryEntryPath(normalizedEntryPath) : normalizedEntryPath;
