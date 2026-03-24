@@ -1,14 +1,32 @@
 {
   "name": "jar-editor",
-  "displayName": "JAR Editor",
-  "description": "Browse and view contents of JAR files in the Explorer sidebar",
+  "displayName": "JarEditor",
+  "description": "Browse and edit JAR files directly from the Explorer sidebar",
   "version": "1.0.0",
   "publisher": "liubs",
+  "icon": "img/icon.png",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Liubsyy/jar-editor-vscode.git"
+  },
+  "homepage": "https://github.com/Liubsyy/jar-editor-vscode#readme",
+  "bugs": {
+    "url": "https://github.com/Liubsyy/jar-editor-vscode/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
+  ],
+  "keywords": [
+    "jar",
+    "java",
+    "class",
+    "decompiler",
+    "explorer",
+    "archive"
   ],
   "activationEvents": [
     "onFileSystem:jar-contents",

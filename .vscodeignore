@@ -8,3 +8,7 @@ tsconfig.json
 esbuild.js
 **/*.map
 **/*.ts
+AGENTS.md
+CLAUDE.md
+doc/**
+build-vsix.sh

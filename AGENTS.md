@@ -185,13 +185,17 @@ Classpath 规则：
 - `## 验证方式` 章节优先使用编号列表，写可直接执行的验证步骤
 - 文档应与当前代码保持一致；功能行为变更后，如已有相关 `doc/*.md`，需要同步更新
 
-
-
 ## README约定
-- 默认中文，还有一份README_en.md为英文，README中可以自由切换中英文
-
-
-
+- 名字叫JarEditor，不要乱改大小写和增加空格
+- 默认英文，还有一份README_zh.md为中文，README中可以自由切换中英文
+- 只需要生成基本描述、功能特性、使用说明、安装与运行、LICENCE即可
+-安装和运行包含两种:
+  1. 通过VSCode Marketplace安装 
+  2. 本地源码构建
+- 尽可能保持简单，不要写技术和实现细节，主要突出功能和使用
+- 使用说明需要用到img目录下的JarEditor_main.png和JarEditor_add_delete.png，使用img标签
+ - JarEditor_main.png的width为800,height根据图片大小等比例调整
+ - JarEditor_add_delete.png的width为500，height根据图片大小等比例调整
 
 ## 常用命令
 
