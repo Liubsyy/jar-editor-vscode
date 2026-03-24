@@ -199,8 +199,14 @@ Classpath 规则：
   - JarEditor_add_delete.png的width为500，height根据图片大小等比例调整
 
 ## 修改版本约定
+- 一定要在我要求“修改版本”相关语义时才修改版本，默认不修改版本
 - 每次在原来的版本上+1
 - 修改版本后需要修改CHANGELOG.md
+
+## 提交约束
+- 本AGENTS.md只要修改了就需要提交
+- doc/和README，只要修改了就需要提交
+
 
 ## 常用命令
 
