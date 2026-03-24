@@ -1,0 +1,133 @@
+{
+  "name": "jar-editor",
+  "displayName": "JAR Editor",
+  "description": "Browse and view contents of JAR files in the Explorer sidebar",
+  "version": "0.0.1",
+  "publisher": "liubs",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onFileSystem:jar-contents",
+    "onFileSystem:jar-decompiled"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "jarEditor",
+          "name": "JAR Editor"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "jarEditor.textEditor",
+        "displayName": "JAR Text Editor",
+        "selector": [
+          {
+            "filenamePattern": "*"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "jarEditor.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)",
+        "category": "JAR Editor"
+      },
+      {
+        "command": "jarEditor.addEntry",
+        "title": "Add",
+        "category": "JAR Editor"
+      },
+      {
+        "command": "jarEditor.deleteEntry",
+        "title": "Delete",
+        "category": "JAR Editor"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "jarEditor.refresh",
+          "when": "view == jarEditor",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "jarEditor.addEntry",
+          "when": "view == jarEditor && viewItem == jarRoot",
+          "group": "navigation"
+        },
+        {
+          "command": "jarEditor.addEntry",
+          "when": "view == jarEditor && viewItem == jarDirectory",
+          "group": "navigation"
+        },
+        {
+          "command": "jarEditor.deleteEntry",
+          "when": "view == jarEditor && viewItem == jarDirectory",
+          "group": "modification"
+        },
+        {
+          "command": "jarEditor.deleteEntry",
+          "when": "view == jarEditor && viewItem == jarFile",
+          "group": "modification"
+        }
+      ]
+    },
+    "resourceLabelFormatters": [
+      {
+        "scheme": "jar-contents",
+        "formatting": {
+          "label": "${path}",
+          "separator": "/",
+          "workspaceSuffix": "JAR"
+        }
+      },
+      {
+        "scheme": "jar-decompiled",
+        "formatting": {
+          "label": "${path}",
+          "separator": "/",
+          "workspaceSuffix": "JAR (Decompiled)"
+        }
+      }
+    ],
+    "configuration": {
+      "title": "JAR Editor",
+      "properties": {
+        "jarEditor.javaHome": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Java installation for .class file decompilation. If empty, uses JAVA_HOME or PATH."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.6",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.3.0"
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "compile": "tsc -p ."
+  }
+}
