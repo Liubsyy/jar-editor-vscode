@@ -2,31 +2,35 @@
 
 [English](./README.md) | [中文](./README_zh.md)
 
-JarEditor is a VS Code extension for browsing and editing JAR files directly from the Explorer sidebar.
+JarEditor is a VS Code extension for browsing and editing JAR files directly in Explorer.
 
-It lets you inspect archive contents, edit regular entries, open `.class` files as decompiled Java source, add or delete entries, and write changes back to the original JAR.
+It lets you inspect archive contents, edit text entries, open `.class` files as decompiled Java source, add or delete entries, and build changes back into the original JAR.
+
+![JarEditor demo](./img/JarEditor_demo.gif)
 
 ## Features
 
-- Browse JAR files in the `JarEditor` view
-- Open and edit regular files inside a JAR
+- Browse JAR contents from the `JarEditor` view in Explorer
+- Open and edit regular text entries inside a JAR
 - Open `.class` files as decompiled Java source
-- Recompile modified `.class` files on save
-- Add new files, classes, and directories
+- Recompile modified `.class` files when saving
+- Add new files, classes, and directories from the context menu
 - Delete files or directories from a JAR
-- Build edited output back into the original JAR
+- Build edited output back into the original archive
 
 ## Usage
 
-Open a workspace that contains JAR files. JarEditor will list them in the Explorer sidebar.
-
-Open any regular entry to edit its text content directly. Open a `.class` entry to view and edit decompiled Java source in the custom editor. After saving Java changes, use `Build Jar` to merge the compiled output back into the original archive.
+1. Open a workspace that contains one or more JAR files.
+2. Find them in the `JarEditor` view in Explorer.
+3. Open any entry to inspect or edit it.
+4. Save changes to `.class` files to compile them.
+5. Use `Build Jar` to merge compiled output back into the source JAR.
 
 If you want to edit `.class` files, make sure a JDK is available. You can use `jarEditor.javaHome` or select a JDK from the editor toolbar.
 
 <img src="./img/JarEditor_main.png" width="800" height="472" alt="JarEditor main view" />
 
-Use the Explorer context menu to create files, classes, or directories, and delete existing entries when needed.
+Use the Explorer context menu to create new files, classes, or directories, and to delete existing entries.
 
 <img src="./img/JarEditor_add_delete.png" width="500" height="431" alt="JarEditor add and delete actions" />
 
@@ -34,7 +38,7 @@ Use the Explorer context menu to create files, classes, or directories, and dele
 
 ### Install from VS Code Marketplace
 
-Open the Extensions view in VS Code, search for `JarEditor`, and install it from the Marketplace.
+Search for `JarEditor` in the VS Code Extensions view and install it from the Marketplace.
 
 ### Build from Source
 
@@ -43,7 +47,7 @@ npm install
 npm run build
 ```
 
-Open this project in VS Code and press `F5` to start an Extension Development Host.
+Open this project in VS Code, then press `F5` to launch an Extension Development Host.
 
 ## Licence
 
