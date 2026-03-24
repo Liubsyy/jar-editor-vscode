@@ -7,9 +7,11 @@ const SEPARATOR = '!/';
 export const DECOMPILED_SCHEME = 'jar-decompiled';
 
 export function createJarContentUri(jarPath: string, entryPath: string): vscode.Uri {
+  const fileUri = vscode.Uri.file(jarPath);
   return vscode.Uri.from({
     scheme: JAR_SCHEME,
-    path: `${jarPath}${SEPARATOR}${entryPath}`,
+    authority: fileUri.authority,
+    path: `${fileUri.path}${SEPARATOR}${entryPath}`,
   });
 }
 
@@ -19,16 +21,18 @@ export function parseJarContentUri(uri: vscode.Uri): { jarPath: string; entryPat
     throw new Error(`Invalid jar-contents URI: ${uri.toString()}`);
   }
   return {
-    jarPath: uri.path.substring(0, idx),
+    jarPath: fromJarUri(uri.authority, uri.path.substring(0, idx)),
     entryPath: uri.path.substring(idx + SEPARATOR.length),
   };
 }
 
 export function createDecompiledUri(jarPath: string, entryPath: string): vscode.Uri {
   const javaPath = entryPath.replace(/\.class$/, '.java');
+  const fileUri = vscode.Uri.file(jarPath);
   return vscode.Uri.from({
     scheme: DECOMPILED_SCHEME,
-    path: `${jarPath}${SEPARATOR}${javaPath}`,
+    authority: fileUri.authority,
+    path: `${fileUri.path}${SEPARATOR}${javaPath}`,
   });
 }
 
@@ -39,9 +43,17 @@ export function parseDecompiledUri(uri: vscode.Uri): { jarPath: string; entryPat
   }
   const javaPath = uri.path.substring(idx + SEPARATOR.length);
   return {
-    jarPath: uri.path.substring(0, idx),
+    jarPath: fromJarUri(uri.authority, uri.path.substring(0, idx)),
     entryPath: javaPath.replace(/\.java$/, '.class'),
   };
+}
+
+function fromJarUri(authority: string, jarUriPath: string): string {
+  return vscode.Uri.from({
+    scheme: 'file',
+    authority,
+    path: jarUriPath,
+  }).fsPath;
 }
 
 export function getJarScheme(): string {

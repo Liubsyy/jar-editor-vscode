@@ -227,7 +227,7 @@ export class JarEditService {
 
   private async createCompileContext(jarPath: string, entryPath: string, outputRoot: string, extraClasspathJars: string[]): Promise<CompileContext> {
     // Filter out the current JAR from extra classpath to avoid duplicates
-    const extraJars = extraClasspathJars.filter((p) => p !== jarPath);
+    const extraJars = this.compactJarClasspathEntries(extraClasspathJars.filter((p) => p !== jarPath));
 
     if (!this.isSpringBootClassesEntry(entryPath)) {
       const classpathEntries = [
@@ -251,11 +251,12 @@ export class JarEditService {
     await fs.promises.mkdir(dependencyClassesRoot, { recursive: true });
     await fs.promises.mkdir(dependencyLibRoot, { recursive: true });
     await this.prepareSpringBootDependencies(jarPath, dependencyClassesRoot, dependencyLibRoot);
+    const dependencyLibEntries = await this.getCompactDependencyClasspathEntries(dependencyLibRoot);
 
     const classpathEntries = [
       ...(fs.existsSync(editedClassesRoot) ? [editedClassesRoot] : []),
       dependencyClassesRoot,
-      ...await this.getSortedDependencyJarPaths(dependencyLibRoot),
+      ...dependencyLibEntries,
       jarPath,
       ...extraJars,
     ];
@@ -277,13 +278,20 @@ export class JarEditService {
     const javacPath = jdkHome
       ? path.join(jdkHome, 'bin', process.platform === 'win32' ? 'javac.exe' : 'javac')
       : findJavaToolExecutable('javac');
-    const compileArgs = this.getCompileArgs(classpathEntries.join(path.delimiter), classesRoot, sourcePath, target);
+    const classpath = classpathEntries.join(path.delimiter);
+    const compileArgs = this.getCompileArgs(classesRoot, sourcePath, target);
 
     await new Promise<void>((resolve, reject) => {
       execFile(
         javacPath,
         compileArgs,
-        { timeout: 35000 },
+        {
+          timeout: 35000,
+          env: {
+            ...process.env,
+            CLASSPATH: classpath,
+          },
+        },
         (error, stdout, stderr) => {
           if (error) {
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -300,7 +308,7 @@ export class JarEditService {
     });
   }
 
-  private getCompileArgs(classpath: string, classesRoot: string, sourcePath: string, target: string): string[] {
+  private getCompileArgs(classesRoot: string, sourcePath: string, target: string): string[] {
     const targetFeatureVersion = this.parseJavaTarget(target);
     const compileArgs = [
       '-encoding', 'UTF-8',
@@ -308,7 +316,6 @@ export class JarEditService {
       '-g',
       '-source', target === '1.1' ? '1.2' : target,
       '-target', target,
-      '-cp', classpath,
       '-d', classesRoot,
     ];
 
@@ -376,12 +383,44 @@ export class JarEditService {
     }
   }
 
-  private async getSortedDependencyJarPaths(dependencyLibRoot: string): Promise<string[]> {
+  private async getCompactDependencyClasspathEntries(dependencyLibRoot: string): Promise<string[]> {
     const entries = await fs.promises.readdir(dependencyLibRoot, { withFileTypes: true });
-    return entries
+    const jarPaths = entries
       .filter((entry) => entry.isFile() && entry.name.endsWith('.jar'))
       .map((entry) => path.join(dependencyLibRoot, entry.name))
       .sort((left, right) => path.basename(left).localeCompare(path.basename(right)));
+
+    if (jarPaths.length === 0) {
+      return [];
+    }
+
+    return [path.join(dependencyLibRoot, '*')];
+  }
+
+  private compactJarClasspathEntries(jarPaths: string[]): string[] {
+    const uniqueJarPaths = Array.from(new Set(jarPaths));
+    const groupedByDirectory = new Map<string, string[]>();
+
+    for (const jarPath of uniqueJarPaths) {
+      const directory = path.dirname(jarPath);
+      const group = groupedByDirectory.get(directory);
+      if (group) {
+        group.push(jarPath);
+      } else {
+        groupedByDirectory.set(directory, [jarPath]);
+      }
+    }
+
+    const compactedEntries: string[] = [];
+    for (const [directory, group] of groupedByDirectory.entries()) {
+      if (group.length > 1) {
+        compactedEntries.push(path.join(directory, '*'));
+        continue;
+      }
+      compactedEntries.push(group[0]);
+    }
+
+    return compactedEntries.sort((left, right) => left.localeCompare(right));
   }
 
   private async removePreviousCompiledArtifacts(outputRoot: string, entryPath: string): Promise<void> {

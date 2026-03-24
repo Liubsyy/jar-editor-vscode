@@ -2,7 +2,7 @@
   "name": "jar-editor",
   "displayName": "JarEditor",
   "description": "Browse and edit JAR files directly from the Explorer sidebar",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "liubsyy",
   "icon": "img/icon.png",
   "license": "SEE LICENSE IN LICENSE",
