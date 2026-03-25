@@ -187,6 +187,7 @@ Classpath 规则：
 
 ## README约定
 - 名字叫JarEditor，不要乱改大小写和增加空格
+- 开头加上:本扩展基于VSCode，如基于Jetbrains可看我另一个项目：https://github.com/Liubsyy/JarEditor
 - 默认英文，还有一份README_zh.md为中文，README中可以自由切换中英文
 - 只需要生成基本描述、功能特性、使用说明、安装与运行、LICENCE即可
 -安装和运行包含两种:
